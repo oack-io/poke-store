@@ -1,0 +1,327 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Store" requireAuth={true}>
+  <div class="store-header">
+    <h1 class="page-title">Pokémon Store</h1>
+    <div class="search-bar">
+      <input
+        type="text"
+        id="search-input"
+        class="input search-input"
+        placeholder="Search by name or type..."
+        data-testid="search-input"
+      />
+      <div class="type-filters" id="type-filters" data-testid="type-filters">
+        <button class="type-filter active" data-type="" data-testid="filter-all">All</button>
+        <button class="type-filter" data-type="Fire" data-testid="filter-fire">Fire</button>
+        <button class="type-filter" data-type="Water" data-testid="filter-water">Water</button>
+        <button class="type-filter" data-type="Grass" data-testid="filter-grass">Grass</button>
+        <button class="type-filter" data-type="Electric" data-testid="filter-electric">Electric</button>
+        <button class="type-filter" data-type="Psychic" data-testid="filter-psychic">Psychic</button>
+        <button class="type-filter" data-type="Normal" data-testid="filter-normal">Normal</button>
+        <button class="type-filter" data-type="Dragon" data-testid="filter-dragon">Dragon</button>
+        <button class="type-filter" data-type="Ghost" data-testid="filter-ghost">Ghost</button>
+        <button class="type-filter" data-type="Ice" data-testid="filter-ice">Ice</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-info" data-testid="results-info">
+    <span id="results-count"></span>
+  </div>
+
+  <div id="pokemon-grid" class="pokemon-grid" data-testid="pokemon-grid">
+    <div class="loading">Loading Pokémon...</div>
+  </div>
+</Layout>
+
+<script is:inline>
+  let currentQuery = '';
+  let currentType = '';
+  let debounceTimer;
+
+  const searchInput = document.getElementById('search-input');
+  const grid = document.getElementById('pokemon-grid');
+  const resultsCount = document.getElementById('results-count');
+
+  // Search input with debounce
+  searchInput.addEventListener('input', (e) => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      currentQuery = e.target.value;
+      loadPokemon();
+    }, 300);
+  });
+
+  // Type filter buttons
+  document.querySelectorAll('.type-filter').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.type-filter').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentType = btn.dataset.type;
+      loadPokemon();
+    });
+  });
+
+  async function loadPokemon() {
+    const params = new URLSearchParams();
+    if (currentQuery) params.set('q', currentQuery);
+    if (currentType) params.set('type', currentType);
+
+    try {
+      const res = await fetch(`/api/pokemon?${params}`);
+      const data = await res.json();
+      renderPokemon(data.pokemon);
+      resultsCount.textContent = `${data.count} Pokémon found`;
+    } catch {
+      grid.innerHTML = '<p class="error-message">Failed to load Pokémon. Please try again.</p>';
+    }
+  }
+
+  function formatPrice(cents) {
+    return '$' + (cents / 100).toFixed(2);
+  }
+
+  function renderPokemon(pokemon) {
+    if (!pokemon || pokemon.length === 0) {
+      grid.innerHTML = `
+        <div class="empty-state" data-testid="empty-results">
+          <p>No Pokémon found. Try a different search!</p>
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = pokemon.map(p => `
+      <div class="card pokemon-card" data-testid="pokemon-card-${p.id}" data-pokemon-id="${p.id}">
+        <div class="pokemon-image-wrapper" style="background: linear-gradient(135deg, ${getTypeColor(p.type[0])}20, ${getTypeColor(p.type[0])}40)">
+          <img src="${p.image}" alt="${p.name}" class="pokemon-image" onerror="this.style.display='none'" loading="lazy" />
+          <span class="pokemon-id">#${String(p.id).padStart(3, '0')}</span>
+        </div>
+        <div class="pokemon-info">
+          <h3 class="pokemon-name" data-testid="pokemon-name">${p.name}</h3>
+          <div class="pokemon-types">
+            ${p.type.map(t => `<span class="type-badge type-${t}">${t}</span>`).join('')}
+          </div>
+          <p class="pokemon-desc">${p.description.substring(0, 100)}...</p>
+          <div class="pokemon-stats-mini">
+            <span title="HP">HP ${p.hp}</span>
+            <span title="Attack">ATK ${p.attack}</span>
+            <span title="Defense">DEF ${p.defense}</span>
+            <span title="Speed">SPD ${p.speed}</span>
+          </div>
+          <div class="pokemon-footer">
+            <span class="price" data-testid="pokemon-price">${formatPrice(p.price)}</span>
+            <button
+              class="btn btn-primary btn-sm add-to-cart-btn"
+              data-pokemon-id="${p.id}"
+              data-testid="add-to-cart-${p.id}"
+            >Add to Cart</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // Attach add-to-cart handlers
+    document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const pokemonId = parseInt(btn.dataset.pokemonId);
+        btn.disabled = true;
+        btn.textContent = 'Adding...';
+
+        try {
+          const res = await fetch('/api/cart/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pokemonId, quantity: 1 }),
+          });
+
+          if (res.ok) {
+            btn.textContent = 'Added!';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-accent');
+            // Update cart badge
+            const meRes = await fetch('/api/me');
+            if (meRes.ok) {
+              const me = await meRes.json();
+              const badge = document.getElementById('cart-badge');
+              badge.textContent = me.cartCount;
+              badge.style.display = me.cartCount > 0 ? 'inline' : 'none';
+            }
+            setTimeout(() => {
+              btn.textContent = 'Add to Cart';
+              btn.classList.remove('btn-accent');
+              btn.classList.add('btn-primary');
+              btn.disabled = false;
+            }, 1500);
+          } else {
+            btn.textContent = 'Error';
+            setTimeout(() => {
+              btn.textContent = 'Add to Cart';
+              btn.disabled = false;
+            }, 1500);
+          }
+        } catch {
+          btn.textContent = 'Error';
+          setTimeout(() => {
+            btn.textContent = 'Add to Cart';
+            btn.disabled = false;
+          }, 1500);
+        }
+      });
+    });
+  }
+
+  function getTypeColor(type) {
+    const colors = {
+      Fire: '#fd7d24', Water: '#6890f0', Grass: '#78c850', Electric: '#f8d030',
+      Psychic: '#f85888', Ice: '#98d8d8', Dragon: '#7038f8', Normal: '#a8a878',
+      Poison: '#a040a0', Flying: '#a890f0', Ghost: '#705898', Rock: '#b8a038',
+      Ground: '#e0c068', Fairy: '#ee99ac',
+    };
+    return colors[type] || '#a8a878';
+  }
+
+  // Initial load
+  loadPokemon();
+</script>
+
+<style>
+  .store-header { margin-bottom: 24px; }
+
+  .page-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 1.3rem;
+    margin-bottom: 20px;
+    color: var(--color-secondary);
+  }
+
+  .search-bar { display: flex; flex-direction: column; gap: 12px; }
+
+  .search-input {
+    font-size: 1rem;
+    padding: 14px 20px;
+  }
+
+  .type-filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .type-filter {
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--color-border);
+    background: var(--color-card);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .type-filter:hover { border-color: var(--color-primary); }
+  .type-filter.active {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+  }
+
+  .results-info {
+    margin-bottom: 16px;
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+  }
+
+  .pokemon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 24px;
+  }
+
+  .pokemon-card { cursor: default; }
+
+  .pokemon-image-wrapper {
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    position: relative;
+  }
+
+  .pokemon-image {
+    width: 120px;
+    height: 120px;
+    object-fit: contain;
+  }
+
+  .pokemon-id {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.65rem;
+    color: rgba(0, 0, 0, 0.2);
+  }
+
+  .pokemon-info { padding: 16px 20px 20px; }
+
+  .pokemon-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .pokemon-types {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .pokemon-desc {
+    font-size: 0.82rem;
+    color: var(--color-text-secondary);
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+
+  .pokemon-stats-mini {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 14px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+  }
+
+  .pokemon-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .pokemon-footer .price { font-size: 0.85rem; }
+
+  .empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--color-text-secondary);
+  }
+
+  .loading {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--color-text-secondary);
+  }
+
+  @media (max-width: 640px) {
+    .pokemon-grid { grid-template-columns: 1fr; }
+  }
+</style>

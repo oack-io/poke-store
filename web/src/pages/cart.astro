@@ -1,0 +1,223 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Cart" requireAuth={true}>
+  <h1 class="page-title">Your Cart</h1>
+
+  <div id="cart-container" data-testid="cart-container">
+    <div class="loading">Loading cart...</div>
+  </div>
+</Layout>
+
+<script is:inline>
+  const container = document.getElementById('cart-container');
+
+  async function loadCart() {
+    try {
+      const res = await fetch('/api/cart');
+      if (!res.ok) throw new Error('Failed to load cart');
+      const cart = await res.json();
+      renderCart(cart);
+    } catch {
+      container.innerHTML = '<p class="error-message">Failed to load cart.</p>';
+    }
+  }
+
+  function formatPrice(cents) {
+    return '$' + (cents / 100).toFixed(2);
+  }
+
+  function renderCart(cart) {
+    if (!cart.items || cart.items.length === 0) {
+      container.innerHTML = `
+        <div class="empty-cart" data-testid="empty-cart">
+          <h2>Your cart is empty</h2>
+          <p>Looks like you haven't caught any Pokémon yet!</p>
+          <a href="/store" class="btn btn-primary mt-4" data-testid="continue-shopping">Continue Shopping</a>
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="cart-layout">
+        <div class="cart-items" data-testid="cart-items">
+          ${cart.items.map(item => `
+            <div class="cart-item card" data-testid="cart-item-${item.pokemon.id}">
+              <div class="cart-item-image" style="background: linear-gradient(135deg, rgba(200,200,200,0.2), rgba(200,200,200,0.4))">
+                <img src="${item.pokemon.image}" alt="${item.pokemon.name}" onerror="this.style.display='none'" />
+              </div>
+              <div class="cart-item-info">
+                <h3 data-testid="cart-item-name">${item.pokemon.name}</h3>
+                <div class="cart-item-types">
+                  ${item.pokemon.type.map(t => `<span class="type-badge type-${t}">${t}</span>`).join('')}
+                </div>
+                <span class="cart-item-price">${formatPrice(item.pokemon.price)} each</span>
+              </div>
+              <div class="cart-item-quantity">
+                <span class="quantity-label">Qty: </span>
+                <span class="quantity-value" data-testid="cart-item-qty-${item.pokemon.id}">${item.quantity}</span>
+              </div>
+              <div class="cart-item-subtotal">
+                <span class="price" data-testid="cart-item-subtotal-${item.pokemon.id}">${formatPrice(item.subtotal)}</span>
+              </div>
+              <button
+                class="btn btn-danger btn-sm remove-btn"
+                data-pokemon-id="${item.pokemon.id}"
+                data-testid="remove-${item.pokemon.id}"
+              >Remove</button>
+            </div>
+          `).join('')}
+        </div>
+
+        <div class="cart-summary card" data-testid="cart-summary">
+          <h2>Order Summary</h2>
+          <div class="summary-row">
+            <span>Items (${cart.items.reduce((sum, i) => sum + i.quantity, 0)})</span>
+            <span>${formatPrice(cart.total)}</span>
+          </div>
+          <div class="summary-row">
+            <span>Shipping</span>
+            <span class="free-shipping">FREE (Pidgeot Express)</span>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-row summary-total">
+            <span>Total</span>
+            <span class="price" data-testid="cart-total">${formatPrice(cart.total)}</span>
+          </div>
+          <a href="/checkout" class="btn btn-primary btn-lg" style="width:100%;margin-top:16px" data-testid="checkout-btn">
+            Proceed to Checkout
+          </a>
+          <a href="/store" class="btn btn-outline" style="width:100%;margin-top:8px;color:var(--color-text)" data-testid="continue-shopping">
+            Continue Shopping
+          </a>
+        </div>
+      </div>`;
+
+    // Remove buttons
+    document.querySelectorAll('.remove-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const pokemonId = parseInt(btn.dataset.pokemonId);
+        btn.disabled = true;
+        try {
+          await fetch('/api/cart/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pokemonId }),
+          });
+          loadCart();
+        } catch {
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
+  loadCart();
+</script>
+
+<style>
+  .page-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 1.3rem;
+    margin-bottom: 24px;
+    color: var(--color-secondary);
+  }
+
+  .cart-layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .cart-items { display: flex; flex-direction: column; gap: 12px; }
+
+  .cart-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .cart-item:hover { transform: none; }
+
+  .cart-item-image {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .cart-item-image img {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+  }
+
+  .cart-item-info { flex: 1; }
+  .cart-item-info h3 { font-size: 1rem; margin-bottom: 4px; }
+  .cart-item-types { display: flex; gap: 4px; margin-bottom: 4px; }
+  .cart-item-price { font-size: 0.8rem; color: var(--color-text-secondary); }
+
+  .cart-item-quantity {
+    font-size: 0.9rem;
+    font-weight: 600;
+    min-width: 50px;
+    text-align: center;
+  }
+
+  .quantity-label { color: var(--color-text-secondary); font-weight: 400; font-size: 0.8rem; }
+
+  .cart-item-subtotal { min-width: 80px; text-align: right; }
+  .cart-item-subtotal .price { font-size: 0.8rem; }
+
+  .cart-summary { padding: 24px; position: sticky; top: 88px; }
+  .cart-summary h2 { font-size: 1.1rem; margin-bottom: 16px; }
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+  }
+
+  .free-shipping { color: var(--color-success); font-weight: 600; font-size: 0.8rem; }
+
+  .summary-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: 12px 0;
+  }
+
+  .summary-total { font-weight: 700; font-size: 1rem; }
+  .summary-total .price { font-size: 1rem; }
+
+  .empty-cart {
+    text-align: center;
+    padding: 60px 20px;
+  }
+
+  .empty-cart h2 {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 1rem;
+    margin-bottom: 12px;
+    color: var(--color-secondary);
+  }
+
+  .empty-cart p { color: var(--color-text-secondary); margin-bottom: 8px; }
+
+  .loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--color-text-secondary);
+  }
+
+  @media (max-width: 800px) {
+    .cart-layout { grid-template-columns: 1fr; }
+    .cart-item { flex-wrap: wrap; }
+  }
+</style>

@@ -1,0 +1,362 @@
+---
+interface Props {
+  title: string;
+  requireAuth?: boolean;
+}
+
+const { title, requireAuth = false } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="PokéStore - Your one-stop shop for Pokémon!" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title} | PokéStore</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <nav id="navbar" class="navbar">
+      <div class="nav-content">
+        <a href="/" class="logo">
+          <span class="logo-poke">Poké</span><span class="logo-store">Store</span>
+        </a>
+        <div id="nav-links" class="nav-links">
+          <a href="/store" class="nav-link" data-testid="nav-store">Store</a>
+          <a href="/cart" class="nav-link" data-testid="nav-cart">
+            Cart <span id="cart-badge" class="cart-badge" style="display:none">0</span>
+          </a>
+          <button id="logout-btn" class="btn btn-sm btn-outline" data-testid="logout-btn" style="display:none">
+            Logout
+          </button>
+          <span id="user-name" class="user-name" data-testid="user-name"></span>
+        </div>
+      </div>
+    </nav>
+
+    <main class="main-content">
+      <slot />
+    </main>
+
+    <footer class="footer">
+      <p>PokéStore &copy; 2026 — A demo app for Playwright testing. No real Pokémon were harmed.</p>
+    </footer>
+
+    <script is:inline define:vars={{ requireAuth }}>
+      async function checkAuth() {
+        try {
+          const res = await fetch('/api/me');
+          if (!res.ok) {
+            if (requireAuth) {
+              window.location.href = '/login';
+            }
+            return null;
+          }
+          const user = await res.json();
+          document.getElementById('user-name').textContent = user.name;
+          document.getElementById('logout-btn').style.display = 'inline-block';
+          const badge = document.getElementById('cart-badge');
+          if (user.cartCount > 0) {
+            badge.textContent = user.cartCount;
+            badge.style.display = 'inline';
+          }
+          return user;
+        } catch {
+          if (requireAuth) {
+            window.location.href = '/login';
+          }
+          return null;
+        }
+      }
+
+      document.getElementById('logout-btn')?.addEventListener('click', async () => {
+        await fetch('/api/logout', { method: 'POST' });
+        window.location.href = '/login';
+      });
+
+      checkAuth();
+    </script>
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    --color-primary: #ee1515;
+    --color-primary-dark: #cc0000;
+    --color-secondary: #222224;
+    --color-accent: #ffde00;
+    --color-accent-dark: #b3a125;
+    --color-bg: #f5f5f7;
+    --color-card: #ffffff;
+    --color-text: #1d1d1f;
+    --color-text-secondary: #6e6e73;
+    --color-border: #d2d2d7;
+    --color-success: #34c759;
+    --color-fire: #fd7d24;
+    --color-water: #6890f0;
+    --color-grass: #78c850;
+    --color-electric: #f8d030;
+    --color-psychic: #f85888;
+    --color-ice: #98d8d8;
+    --color-dragon: #7038f8;
+    --color-normal: #a8a878;
+    --color-poison: #a040a0;
+    --color-flying: #a890f0;
+    --color-ghost: #705898;
+    --color-rock: #b8a038;
+    --color-ground: #e0c068;
+    --color-fairy: #ee99ac;
+    --radius: 12px;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.12);
+  }
+
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--color-bg);
+    color: var(--color-text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .navbar {
+    background: var(--color-secondary);
+    padding: 0 24px;
+    height: 64px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: var(--shadow);
+  }
+
+  .nav-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+  }
+
+  .logo {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 1.1rem;
+    text-decoration: none;
+    display: flex;
+    gap: 4px;
+  }
+
+  .logo-poke { color: var(--color-primary); }
+  .logo-store { color: var(--color-accent); }
+
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+
+  .nav-link {
+    color: #ffffff;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.95rem;
+    transition: color 0.2s;
+    position: relative;
+  }
+
+  .nav-link:hover { color: var(--color-accent); }
+
+  .cart-badge {
+    background: var(--color-primary);
+    color: white;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 10px;
+    position: absolute;
+    top: -8px;
+    right: -16px;
+  }
+
+  .user-name {
+    color: var(--color-accent);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .main-content {
+    flex: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px;
+    width: 100%;
+  }
+
+  .footer {
+    background: var(--color-secondary);
+    color: var(--color-text-secondary);
+    text-align: center;
+    padding: 20px;
+    font-size: 0.8rem;
+    margin-top: auto;
+  }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    text-decoration: none;
+  }
+
+  .btn-primary {
+    background: var(--color-primary);
+    color: white;
+  }
+  .btn-primary:hover { background: var(--color-primary-dark); }
+
+  .btn-accent {
+    background: var(--color-accent);
+    color: var(--color-secondary);
+  }
+  .btn-accent:hover { background: var(--color-accent-dark); }
+
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: white;
+  }
+  .btn-outline:hover { background: rgba(255,255,255,0.1); }
+
+  .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+  .btn-lg { padding: 14px 28px; font-size: 1rem; }
+
+  .btn-danger {
+    background: transparent;
+    color: var(--color-primary);
+    border: 1px solid var(--color-primary);
+  }
+  .btn-danger:hover { background: var(--color-primary); color: white; }
+
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--color-card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Type badges */
+  .type-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: white;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .type-Fire { background: var(--color-fire); }
+  .type-Water { background: var(--color-water); }
+  .type-Grass { background: var(--color-grass); }
+  .type-Electric { background: var(--color-electric); color: #333; }
+  .type-Psychic { background: var(--color-psychic); }
+  .type-Ice { background: var(--color-ice); color: #333; }
+  .type-Dragon { background: var(--color-dragon); }
+  .type-Normal { background: var(--color-normal); }
+  .type-Poison { background: var(--color-poison); }
+  .type-Flying { background: var(--color-flying); }
+  .type-Ghost { background: var(--color-ghost); }
+  .type-Rock { background: var(--color-rock); }
+  .type-Ground { background: var(--color-ground); color: #333; }
+  .type-Fairy { background: var(--color-fairy); }
+
+  /* Forms */
+  .input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid var(--color-border);
+    border-radius: 8px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+
+  .input:focus { border-color: var(--color-primary); }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+  }
+
+  /* Utility */
+  .text-center { text-align: center; }
+  .mt-4 { margin-top: 16px; }
+  .mt-8 { margin-top: 32px; }
+  .mb-4 { margin-bottom: 16px; }
+  .mb-8 { margin-bottom: 32px; }
+
+  .price {
+    font-family: 'Press Start 2P', cursive;
+    color: var(--color-primary);
+  }
+
+  .error-message {
+    background: #fef2f2;
+    color: #dc2626;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    border: 1px solid #fecaca;
+  }
+
+  .success-message {
+    background: #f0fdf4;
+    color: #16a34a;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    border: 1px solid #bbf7d0;
+  }
+</style>

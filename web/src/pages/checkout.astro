@@ -1,0 +1,339 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Checkout" requireAuth={true}>
+  <div id="checkout-container" data-testid="checkout-container">
+    <div class="loading">Loading checkout...</div>
+  </div>
+</Layout>
+
+<script is:inline>
+  const container = document.getElementById('checkout-container');
+
+  function formatPrice(cents) {
+    return '$' + (cents / 100).toFixed(2);
+  }
+
+  async function loadCheckout() {
+    try {
+      const res = await fetch('/api/cart');
+      if (!res.ok) throw new Error('Failed to load cart');
+      const cart = await res.json();
+
+      if (!cart.items || cart.items.length === 0) {
+        window.location.href = '/cart';
+        return;
+      }
+
+      renderCheckout(cart);
+    } catch {
+      container.innerHTML = '<p class="error-message">Failed to load checkout.</p>';
+    }
+  }
+
+  function renderCheckout(cart) {
+    container.innerHTML = `
+      <div class="checkout-layout">
+        <div class="checkout-form-section">
+          <h1 class="page-title">Checkout</h1>
+
+          <div id="checkout-error" class="error-message" style="display:none" data-testid="checkout-error"></div>
+
+          <form id="checkout-form" data-testid="checkout-form">
+            <div class="form-section">
+              <h2 class="form-section-title">Trainer Information</h2>
+              <div class="form-group">
+                <label for="trainer-name">Trainer Name</label>
+                <input type="text" id="trainer-name" class="input" value="" data-testid="trainer-name" required />
+              </div>
+              <div class="form-group">
+                <label for="trainer-badge">Number of Gym Badges</label>
+                <input type="number" id="trainer-badge" class="input" value="8" min="0" max="8" data-testid="trainer-badges" />
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h2 class="form-section-title">Delivery Address</h2>
+              <div class="form-group">
+                <label for="address">Delivery Location</label>
+                <input type="text" id="address" class="input" placeholder="e.g., Pallet Town, Route 1" data-testid="delivery-address" required />
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="flex:1">
+                  <label for="region">Region</label>
+                  <select id="region" class="input" data-testid="delivery-region">
+                    <option value="kanto">Kanto</option>
+                    <option value="johto">Johto</option>
+                    <option value="hoenn">Hoenn</option>
+                    <option value="sinnoh">Sinnoh</option>
+                  </select>
+                </div>
+                <div class="form-group" style="flex:1">
+                  <label for="zip">Poké Code</label>
+                  <input type="text" id="zip" class="input" placeholder="PKM-001" data-testid="poke-code" />
+                </div>
+              </div>
+            </div>
+
+            <div class="form-section">
+              <h2 class="form-section-title">Payment</h2>
+              <div class="form-group">
+                <label for="card">PokéCard Number</label>
+                <input type="text" id="card" class="input" placeholder="4242 4242 4242 4242" data-testid="card-number" required />
+              </div>
+              <div class="form-row">
+                <div class="form-group" style="flex:1">
+                  <label for="expiry">Expiry</label>
+                  <input type="text" id="expiry" class="input" placeholder="MM/YY" data-testid="card-expiry" required />
+                </div>
+                <div class="form-group" style="flex:1">
+                  <label for="cvv">CVV</label>
+                  <input type="text" id="cvv" class="input" placeholder="123" data-testid="card-cvv" required />
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-lg" style="width:100%" data-testid="place-order-btn">
+              Place Order — ${formatPrice(cart.total)}
+            </button>
+          </form>
+        </div>
+
+        <div class="order-summary card" data-testid="order-summary">
+          <h2>Order Summary</h2>
+          ${cart.items.map(item => `
+            <div class="summary-item">
+              <span class="summary-item-name">${item.pokemon.name} x${item.quantity}</span>
+              <span class="summary-item-price">${formatPrice(item.subtotal)}</span>
+            </div>
+          `).join('')}
+          <div class="summary-divider"></div>
+          <div class="summary-item">
+            <span>Shipping</span>
+            <span class="free-shipping">FREE</span>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-item summary-total">
+            <span>Total</span>
+            <span class="price" data-testid="checkout-total">${formatPrice(cart.total)}</span>
+          </div>
+        </div>
+      </div>`;
+
+    // Fill trainer name from session
+    fetch('/api/me').then(r => r.json()).then(me => {
+      const nameInput = document.getElementById('trainer-name');
+      if (nameInput && me.name) nameInput.value = me.name;
+    }).catch(() => {});
+
+    // Handle checkout form submit
+    document.getElementById('checkout-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errorEl = document.getElementById('checkout-error');
+      errorEl.style.display = 'none';
+
+      const submitBtn = e.target.querySelector('[data-testid="place-order-btn"]');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Processing...';
+
+      try {
+        const res = await fetch('/api/checkout', { method: 'POST' });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Checkout failed');
+        }
+        const order = await res.json();
+        renderSuccess(order);
+      } catch (err) {
+        errorEl.textContent = err.message;
+        errorEl.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.textContent = `Place Order — ${formatPrice(cart.total)}`;
+      }
+    });
+  }
+
+  function renderSuccess(order) {
+    container.innerHTML = `
+      <div class="success-container" data-testid="order-success">
+        <div class="success-card card">
+          <div class="success-icon">&#x2714;&#xFE0F;</div>
+          <h1 class="success-title">Order Confirmed!</h1>
+          <p class="success-subtitle">Your Pokémon are on their way via Pidgeot Express!</p>
+
+          <div class="order-details">
+            <div class="order-detail-row">
+              <span>Order ID</span>
+              <strong data-testid="order-id">${order.id}</strong>
+            </div>
+            <div class="order-detail-row">
+              <span>Status</span>
+              <span class="order-status" data-testid="order-status">${order.status}</span>
+            </div>
+            <div class="order-detail-row">
+              <span>Items</span>
+              <span>${order.items.length} Pokémon</span>
+            </div>
+            <div class="order-detail-row">
+              <span>Total</span>
+              <strong class="price" data-testid="order-total">${formatPrice(order.total)}</strong>
+            </div>
+          </div>
+
+          <div class="success-items">
+            ${order.items.map(item => `
+              <div class="success-item">
+                <span>${item.pokemon.name} x${item.quantity}</span>
+                <span>${formatPrice(item.subtotal)}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <a href="/store" class="btn btn-primary btn-lg" style="width:100%;margin-top:24px" data-testid="back-to-store">
+            Back to Store
+          </a>
+        </div>
+      </div>`;
+  }
+
+  loadCheckout();
+</script>
+
+<style>
+  .page-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 1.3rem;
+    margin-bottom: 24px;
+    color: var(--color-secondary);
+  }
+
+  .checkout-layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .form-section {
+    background: var(--color-card);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: var(--shadow);
+  }
+
+  .form-section-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 16px;
+    color: var(--color-secondary);
+  }
+
+  .form-row { display: flex; gap: 16px; }
+
+  .order-summary {
+    padding: 24px;
+    position: sticky;
+    top: 88px;
+  }
+
+  .order-summary h2 { font-size: 1.1rem; margin-bottom: 16px; }
+
+  .summary-item {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+  }
+
+  .summary-item-name { color: var(--color-text); }
+  .summary-item-price { font-weight: 500; }
+  .free-shipping { color: var(--color-success); font-weight: 600; }
+
+  .summary-divider {
+    height: 1px;
+    background: var(--color-border);
+    margin: 12px 0;
+  }
+
+  .summary-total { font-weight: 700; font-size: 1rem; }
+
+  /* Success state */
+  .success-container {
+    display: flex;
+    justify-content: center;
+    padding: 40px 0;
+  }
+
+  .success-card {
+    max-width: 500px;
+    width: 100%;
+    padding: 40px;
+    text-align: center;
+  }
+
+  .success-icon { font-size: 3rem; margin-bottom: 16px; }
+
+  .success-title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 1.1rem;
+    color: var(--color-success);
+    margin-bottom: 8px;
+  }
+
+  .success-subtitle {
+    color: var(--color-text-secondary);
+    margin-bottom: 24px;
+  }
+
+  .order-details {
+    background: var(--color-bg);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    text-align: left;
+  }
+
+  .order-detail-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+  }
+
+  .order-detail-row:last-child { margin-bottom: 0; }
+
+  .order-status {
+    background: var(--color-success);
+    color: white;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .success-items {
+    text-align: left;
+    font-size: 0.85rem;
+  }
+
+  .success-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--color-text-secondary);
+  }
+
+  @media (max-width: 800px) {
+    .checkout-layout { grid-template-columns: 1fr; }
+    .form-row { flex-direction: column; gap: 0; }
+  }
+</style>

@@ -1,0 +1,12 @@
+bin/
+cmd/server/static/
+web/node_modules/
+web/dist/
+web/.astro/
+web/test-results/
+web/playwright-report/
+.git/
+.env
+*.md
+!go.mod
+!go.sum
