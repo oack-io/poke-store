@@ -6,8 +6,10 @@ async function loginAsAsh(page) {
   await page.getByTestId('email-input').fill('ash@pokemon.com');
   await page.getByTestId('password-input').fill('pikachu123');
   await page.getByTestId('login-submit').click();
-  await page.waitForURL('/store');
+  await page.waitForURL(/\/store/);
 }
+
+test.describe.configure({ mode: 'serial' });
 
 test.describe('PokéStore', () => {
   test.describe('Home Page', () => {
@@ -98,9 +100,12 @@ test.describe('PokéStore', () => {
     });
 
     test('should navigate to checkout', async ({ page }) => {
+      await loginAsAsh(page);
+      await page.getByTestId('add-to-cart-25').click();
+      await page.waitForTimeout(500);
       await page.goto('/cart');
       await page.getByTestId('checkout-btn').click();
-      await page.waitForURL('/checkout');
+      await page.waitForURL(/\/checkout/);
       await expect(page.getByTestId('checkout-form')).toBeVisible();
     });
   });
@@ -108,12 +113,14 @@ test.describe('PokéStore', () => {
   test.describe('Checkout', () => {
     test.beforeEach(async ({ page }) => {
       await loginAsAsh(page);
+      await page.getByTestId('add-to-cart-25').waitFor({ state: 'visible' });
       await page.getByTestId('add-to-cart-25').click();
       await page.waitForTimeout(500);
     });
 
     test('should complete checkout successfully', async ({ page }) => {
       await page.goto('/checkout');
+      await page.getByTestId('trainer-name').fill('Ash Ketchum');
       await page.getByTestId('delivery-address').fill('Pallet Town, Route 1');
       await page.getByTestId('card-number').fill('4242 4242 4242 4242');
       await page.getByTestId('card-expiry').fill('12/28');

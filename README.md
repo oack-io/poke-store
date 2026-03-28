@@ -83,6 +83,60 @@ make test-e2e
 | `lint`       | Run golangci-lint                    |
 | `clean`      | Remove build artifacts               |
 
+## Oack Browser Monitoring
+
+The `web/tests/e2e/` directory contains standard Playwright tests that double as [Oack](https://oack.io) continuous monitoring checks. No custom format — the same tests you run locally with `npx playwright test` run on the Oack platform unchanged.
+
+### Run tests locally
+
+```bash
+cd web
+npx playwright test          # 13 passed (24.1s)
+npx playwright show-report   # open HTML report
+```
+
+### Run on Oack (one-off)
+
+Upload your Playwright project directory for a one-off test run on Oack's browser infrastructure:
+
+```bash
+# Install and authenticate
+brew install oack-io/tap/oackctl
+oackctl login
+
+# Run tests (opens HTML report in browser)
+oackctl test --team <TEAM> --monitor <MONITOR> --dir web
+```
+
+The output shows pass/fail counts and a link to the full Playwright HTML report.
+
+### Deploy for continuous monitoring
+
+Deploy the test suite to run on a schedule. Every check produces an HTML report and alerts you on failure:
+
+```bash
+oackctl deploy --team <TEAM> --monitor <MONITOR> --dir web
+```
+
+The deploy captures your git commit, branch, and who deployed — visible in the dashboard.
+
+### Multi-monitor config
+
+Define multiple check suites in a config file:
+
+```bash
+oackctl config-deploy --config oack.config.json
+```
+
+See [`oack.config.json`](oack.config.json) for an example.
+
+### What you get
+
+- **Playwright HTML report** — full test breakdown with screenshots and error details
+- **Pass/fail alerts** — any test failure = monitor DOWN, alerts via email/Slack/PagerDuty
+- **Git metadata** — commit SHA, branch, and deployer tracked per deploy
+- **Filters** — run subsets with `--pw-grep`, `--pw-project`, or `--pw-tag`
+
 ## Project Structure
 
 ```

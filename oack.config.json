@@ -1,0 +1,10 @@
+{
+  "team": "a98957b0-a129-4032-a2c4-d18ac8dd2287",
+  "dir": "web",
+  "checks": [
+    {
+      "name": "PokéStore Full Suite",
+      "url": "https://poke-store.oack.io"
+    }
+  ]
+}
