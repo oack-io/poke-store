@@ -1,4 +1,4 @@
-.PHONY: build build-server build-web install-web run dev test lint clean docker docker-push docker-run
+.PHONY: build build-server build-web install-web run dev test test-e2e test-oack lint clean docker docker-push docker-run
 
 APP_NAME := poke-store
 BUILD_DIR := bin
@@ -37,6 +37,9 @@ test:
 
 test-e2e:
 	cd web && npx playwright test
+
+test-oack:
+	cd oack-checks && BASE_URL=$(or $(BASE_URL),http://localhost:6001) npx playwright test
 
 lint:
 	golangci-lint run --tests=false ./...
