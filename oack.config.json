@@ -3,8 +3,7 @@
   "dir": "web",
   "checks": [
     {
-      "name": "PokéStore Full Suite",
-      "url": "https://poke-store.oack.io"
+      "name": "PokéStore Full Suite"
     }
   ]
 }
