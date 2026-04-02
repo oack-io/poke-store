@@ -1,12 +1,15 @@
 import { test, expect } from '@playwright/test';
 
-// Helper to log in as Ash
+// Helper to log in as Ash and land on the store page.
 async function loginAsAsh(page) {
   await page.goto('/login');
   await page.getByTestId('email-input').fill('ash@pokemon.com');
   await page.getByTestId('password-input').fill('pikachu123');
   await page.getByTestId('login-submit').click();
-  await page.waitForURL(/\/store/);
+  // Don't wait for `load` — the store page fetches APIs that add latency.
+  // Wait for URL change + a key element that proves the page rendered.
+  await page.waitForURL(/\/store/, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByTestId('pokemon-grid')).toBeVisible();
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -63,7 +66,6 @@ test.describe('PokéStore', () => {
 
     test('should search Pokémon by name', async ({ page }) => {
       await page.getByTestId('search-input').fill('pikachu');
-      await page.waitForTimeout(500); // debounce
       await expect(page.getByTestId('results-info')).toContainText('1 Pokémon found');
       await expect(page.getByTestId('pokemon-card-25')).toBeVisible();
     });
@@ -74,8 +76,9 @@ test.describe('PokéStore', () => {
     });
 
     test('should add Pokémon to cart', async ({ page }) => {
-      await page.getByTestId('add-to-cart-25').click(); // Add Pikachu
-      await expect(page.getByTestId('add-to-cart-25')).toHaveText('Added!');
+      const addBtn = page.getByTestId('add-to-cart-25');
+      await addBtn.click();
+      await expect(addBtn).toHaveText('Added!');
     });
   });
 
@@ -84,28 +87,25 @@ test.describe('PokéStore', () => {
       await loginAsAsh(page);
       // Add Pikachu to cart
       await page.getByTestId('add-to-cart-25').click();
-      await page.waitForTimeout(500);
+      await expect(page.getByTestId('add-to-cart-25')).toHaveText('Added!');
     });
 
     test('should show items in cart', async ({ page }) => {
-      await page.goto('/cart');
+      await page.goto('/cart', { waitUntil: 'domcontentloaded' });
       await expect(page.getByTestId('cart-item-25')).toBeVisible();
       await expect(page.getByTestId('cart-item-name')).toHaveText('Pikachu');
     });
 
     test('should remove item from cart', async ({ page }) => {
-      await page.goto('/cart');
+      await page.goto('/cart', { waitUntil: 'domcontentloaded' });
       await page.getByTestId('remove-25').click();
       await expect(page.getByTestId('empty-cart')).toBeVisible();
     });
 
     test('should navigate to checkout', async ({ page }) => {
-      await loginAsAsh(page);
-      await page.getByTestId('add-to-cart-25').click();
-      await page.waitForTimeout(500);
-      await page.goto('/cart');
+      await page.goto('/cart', { waitUntil: 'domcontentloaded' });
       await page.getByTestId('checkout-btn').click();
-      await page.waitForURL(/\/checkout/);
+      await page.waitForURL(/\/checkout/, { waitUntil: 'domcontentloaded' });
       await expect(page.getByTestId('checkout-form')).toBeVisible();
     });
   });
@@ -113,13 +113,12 @@ test.describe('PokéStore', () => {
   test.describe('Checkout', () => {
     test.beforeEach(async ({ page }) => {
       await loginAsAsh(page);
-      await page.getByTestId('add-to-cart-25').waitFor({ state: 'visible' });
       await page.getByTestId('add-to-cart-25').click();
-      await page.waitForTimeout(500);
+      await expect(page.getByTestId('add-to-cart-25')).toHaveText('Added!');
     });
 
     test('should complete checkout successfully', async ({ page }) => {
-      await page.goto('/checkout');
+      await page.goto('/checkout', { waitUntil: 'domcontentloaded' });
       await page.getByTestId('trainer-name').fill('Ash Ketchum');
       await page.getByTestId('delivery-address').fill('Pallet Town, Route 1');
       await page.getByTestId('card-number').fill('4242 4242 4242 4242');

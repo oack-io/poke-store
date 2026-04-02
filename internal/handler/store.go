@@ -35,6 +35,9 @@ func (h *Store) List(w http.ResponseWriter, r *http.Request) {
 		results = filtered
 	}
 
+	// Catalog is static — let CDN and browsers cache it.
+	w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
+
 	JSON(w, http.StatusOK, map[string]any{
 		"pokemon": results,
 		"count":   len(results),
@@ -55,5 +58,6 @@ func (h *Store) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.Header().Set("Cache-Control", "public, max-age=60, stale-while-revalidate=300")
 	JSON(w, http.StatusOK, pokemon)
 }
